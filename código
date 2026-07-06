@@ -1,0 +1,364 @@
+#include<MultiFuncShield.h>
+#include<TimerOne.h>
+
+int redVeiculo=11, yellow=12, greenVeiculo=13, pedestre=5, buzzer=3, trigger=9, echo=6, ldr=A5, poten=A0;
+unsigned long tempoAtual=0, tempoAnterior=0;
+int tempoVerde=0, tempoAmarelo=0, tempoVermelho=0, bufVd=0, bufA=0, bufVm=0;
+bool botao, dia, noite, pronto;
+float dist=0, dist1=0, dist2=0, dist3=0, distMedia=0;
+int countSeg=0, count=0, countLuz=0;
+int luz=0, luz1=0, luz2=0, luz3=0, luzMedia=0, limiarLuz=0;
+char buffer;
+
+
+
+float lerDistancia()
+{
+  pinMode(trigger,OUTPUT);
+  digitalWrite(trigger,LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigger,HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigger,LOW);
+  pinMode(echo,INPUT);
+  digitalWrite(echo,HIGH);
+  unsigned long tempo=pulseIn(echo,HIGH);
+  return tempo*0.01723;
+}
+
+void mediaDistancia()
+{
+  dist=lerDistancia();
+  dist1=dist2;
+  dist2=dist3;
+  dist3=dist;
+  count++;
+  if(count>3)
+  {
+    count=3;
+  }
+  distMedia=(dist1+dist2+dist3)/count;
+}
+
+void mediaLuz()
+{
+  limiarLuz=map(poten,0,1023,0,800);
+  luz=analogRead(ldr);
+  luz1=luz2;
+  luz2=luz3;
+  luz3=luz;
+  countLuz++;
+  if(countLuz>3)
+  {
+    countLuz=3;
+  }
+  luzMedia=(luz1+luz2+luz3)/countLuz;
+}
+
+void countDist()
+{
+  mediaDistancia();
+  if(tempoAtual-tempoAnterior>=1000)
+  {
+    if(distMedia>=30)
+    {
+      countSeg++;
+    }
+    else
+    {
+      countSeg=0;
+    }
+  }
+}
+
+void cicloVerde()
+{
+  if(tempoAtual-tempoAnterior>=1000)
+  {
+    tempoAnterior=tempoAtual;
+    tempoVerde--;
+  }
+  if(tempoVerde>0)
+  {
+    MFS.write(tempoVerde);
+    digitalWrite(redVeiculo,HIGH);
+    digitalWrite(greenVeiculo,LOW);
+    digitalWrite(pedestre,LOW);
+    digitalWrite(yellow,HIGH);
+  }
+}
+
+void cicloAmarelo()
+{
+  if(tempoAtual-tempoAnterior>=1000)
+  {
+    tempoAnterior=tempoAtual;
+    tempoAmarelo--;
+  }
+  if(tempoAmarelo>0)
+  {
+    MFS.write(tempoAmarelo);
+    digitalWrite(greenVeiculo,HIGH);
+    digitalWrite(pedestre,LOW);
+    digitalWrite(yellow,LOW);
+  }
+}
+
+void cicloVermelho()
+{
+  if(tempoAtual-tempoAnterior>=1000)
+  {
+    tempoAnterior=tempoAtual;
+    tempoVermelho--;
+  }
+  if(tempoVermelho<=8&&tempoVermelho>5)
+  {
+    MFS.beep(5,5,1,1,0);
+    delay(500);
+  }
+  else if(tempoVermelho<=5&&tempoVermelho>2)
+  {
+    MFS.beep(5,5,1,1,0);
+    delay(250);
+  }
+  else
+  {
+    MFS.beep(5,5,1,1,0);
+    delay(125);
+  }
+  if(tempoVermelho>0)
+  {
+    MFS.write(tempoVermelho);
+    digitalWrite(yellow,HIGH);
+    digitalWrite(pedestre,HIGH);
+    digitalWrite(redVeiculo,LOW);
+  }
+}
+
+void ciclo()
+{
+  if(countSeg>5)
+  {
+    digitalWrite(yellow,LOW);
+    digitalWrite(greenVeiculo,HIGH);
+    digitalWrite(redVeiculo,HIGH);
+    digitalWrite(pedestre,LOW);
+    MFS.write("");
+    if(dia==true)
+    {
+      tempoVerde=bufVd;
+      tempoAmarelo=bufA;
+      tempoVermelho=bufVm;
+      MFS.beep(0,0,0,0,0);
+    }
+    else if(noite==true)
+    {
+      tempoVerde=bufVd+3;
+      tempoAmarelo=bufA;
+      tempoVermelho=bufVm-3;
+      MFS.beep(0,0,0,0,0);
+    }
+  }
+  else
+  {
+    if(tempoVerde>0)
+    {
+      cicloVerde();
+    }
+    else
+    {
+      if(tempoAmarelo>0&&tempoVerde<=0)
+      {
+        cicloAmarelo();
+      }
+      else
+      {
+        if(tempoVermelho>0&&tempoAmarelo<=0&&tempoVerde<=0)
+        {
+          cicloVermelho();
+        }
+        else
+        {
+          if(dia==true)
+          {
+            tempoVerde=bufVd;
+            tempoAmarelo=bufA;
+            tempoVermelho=bufVm;
+            MFS.beep(0,0,0,0,0);
+          }
+          else if(noite==true)
+          {
+            tempoVerde=bufVd+3;
+            tempoAmarelo=bufA;
+            tempoVermelho=bufVm-3;
+            MFS.beep(0,0,0,0,0);
+          }
+        }
+      }
+    }
+  }
+}
+
+void cicloBotao()
+{
+  if(countSeg<5)
+  {
+    if(tempoAmarelo>0)
+    {
+      cicloAmarelo();
+    }
+    else
+    {
+      if(tempoVermelho>0&&tempoAmarelo<=0)
+      {
+        cicloVermelho();
+      }
+      else
+      {
+        if(dia==true)
+        {
+          tempoVerde=bufVd;
+          tempoAmarelo=bufA;
+          tempoVermelho=bufVm;
+          MFS.beep(0,0,0,0,0);
+          botao=false;
+        }
+        else if(noite==true)
+        {
+          tempoVerde=bufVd+3;
+          tempoAmarelo=bufA;
+          tempoVermelho=bufVm-3;
+          MFS.beep(0,0,0,0,0);
+          botao=false;
+        }
+      }
+    }
+  }
+}
+
+void bluetooth()
+{
+  if(Serial.available()>0)
+  { 
+    buffer=Serial.read();
+    if(bufVd==0)
+    { 
+      Serial.print("Digite o tempo do sinal verde: ");
+      delay(1500);
+      bufVd=Serial.parseInt();
+      if(bufVd!=0)
+      {
+        Serial.println(bufVd);
+      }
+      if(bufVm==0&&bufVd!=0)
+      { 
+        Serial.print("Digite o tempo do sinal vermelho: ");
+        delay(1500);
+        bufVm=Serial.parseInt();
+        if(bufVm!=0)
+        {
+          Serial.println(bufVm);
+        }
+        if(bufA==0&&bufVd!=0&&bufVm!=0)
+        { 
+          Serial.print("Digite o tempo do sinal amarelo: ");
+          delay(1500);
+          bufA=Serial.parseInt();
+          if(bufA!=0)
+          {
+            Serial.println(bufA);
+          }
+        }
+      }
+    }
+    if(bufVd>0&&bufVm>0&&bufA>0)
+    {
+      pronto=true;
+    }
+  }
+}
+
+void setup() 
+{
+  Serial.begin(9600);
+  Timer1.initialize();
+  MFS.initialize(&Timer1);
+
+  pinMode(redVeiculo,OUTPUT);
+  pinMode(yellow,OUTPUT);
+  pinMode(greenVeiculo,OUTPUT);
+  pinMode(pedestre,OUTPUT);
+  pinMode(buzzer,OUTPUT);
+  pinMode(trigger,OUTPUT);
+  pinMode(echo,INPUT);
+
+  MFS.beep(0,0,0,0,0);
+}
+
+void loop() 
+{
+  tempoAtual=millis();
+  if(pronto==false)
+  {
+    bluetooth();
+  }
+  else
+  {
+    byte btn=MFS.getButton();
+    countDist();
+    mediaLuz();
+    if(btn)
+    {
+      byte buttonAction=btn&B11000000;
+      if(buttonAction==BUTTON_PRESSED_IND)
+      {
+        botao=true;
+      }
+    }
+    if(luzMedia>limiarLuz&&dia==false)
+    {
+      tempoVerde=bufVd;
+      tempoAmarelo=bufA;
+      tempoVermelho=bufVm;
+      dia=true;
+      noite=false;
+    }
+    else if(luzMedia>limiarLuz&&dia==true)
+    {
+      if(botao==false)
+      {
+        ciclo();
+      }
+      else
+      {
+        cicloBotao();
+      }
+    }
+    if(luzMedia<limiarLuz&&noite==false)
+    {
+      tempoVerde=bufVd+3;
+      tempoAmarelo=bufA;
+      if(bufVm-3<=1)
+      {
+        tempoVermelho=1;
+      }
+      else
+      {
+        tempoVermelho=bufVm-3;
+      }
+      dia=false;
+      noite=true;
+    }
+    else if(luzMedia<limiarLuz&&noite==true)
+    {
+      if(botao==false)
+      {
+        ciclo();
+      }
+      else
+      {
+        cicloBotao();
+      }
+    }
+  }
+}
