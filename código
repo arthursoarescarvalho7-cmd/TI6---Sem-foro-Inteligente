@@ -42,7 +42,7 @@ void mediaDistancia()
 
 void mediaLuz()
 {
-  limiarLuz=map(poten,0,1023,0,800);
+  limiarLuz=map(analogRead(poten),0,1023,0,800);
   luz=analogRead(ldr);
   luz1=luz2;
   luz2=luz3;
